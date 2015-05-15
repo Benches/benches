@@ -18,8 +18,10 @@ defmodule Benches.Router do
     get "/", PageController, :index
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", Benches do
-  #   pipe_through :api
-  # end
+   # Other scopes may use custom stacks.
+   scope "/api", Benches do
+     pipe_through :api
+
+     resources "/builds", BuildController
+   end
 end
