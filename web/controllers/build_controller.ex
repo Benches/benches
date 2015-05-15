@@ -13,33 +13,55 @@ defmodule Benches.BuildController do
   end
 
   def create(conn, %{"build" => build_params, "metrics" => metric_params}) do
-    build_changeset = Build.changeset(%Build{}, build_params)
+    result = Repo.transaction fn() ->
+      result = build_params
+        |> persist_build
+        |> persist_metrics(metric_params)
 
-    if build_changeset.valid? do
-      result = Repo.transaction(fn ->
-        build = Repo.insert(build_changeset)
-
-        metrics = Enum.map(metric_params, fn(metric) ->
-          metric = Map.put(metric, "build_id", build.id)
-          changeset = Metric.changeset(%Metric{}, metric)
-          if changeset.valid? do
-            Repo.insert(changeset)
-          end
-        end)
-
-        build = %{build | metrics: metrics}
-
-        build
-      end)
-
-      {:ok, build} = result
-
-      render(conn, "show.json", build: build)
-    else
-      conn
-      |> put_status(:unprocessable_entity)
-      |> render(Benches.ChangesetView, "error.json", changeset: build_changeset)
+      case result do
+        {:ok, build} -> build
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
     end
+    
+    case result do
+      {:ok, build} -> 
+        render(conn, "show.json", build: build)
+      {:error, changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> render(Benches.ChangesetView, "error.json", changeset: changeset)
+    end
+  end
+
+  defp persist_build(build_params) do
+    changeset = Build.changeset(%Build{}, build_params)
+    if changeset.valid? do
+      {:ok, Repo.insert(changeset)}
+    else
+      {:error, changeset}
+    end
+  end
+
+  defp persist_metrics({:ok, build}, metrics) do
+    changesets =
+      metrics
+      |> Enum.map(fn(m) -> Map.put(m, "build_id", build.id) end)
+      |> Enum.map(fn(m) -> Metric.changeset(%Metric{}, m) end)
+      |> Enum.partition(fn(changeset) -> changeset.valid? end)
+
+    case changesets do
+      {valid_changesets, []} ->
+        metrics = Enum.map(valid_changesets, fn(c) -> Repo.insert(c) end)
+        build = %{build | metrics: metrics}
+        {:ok, build}
+      {_, invalid_changesets} ->
+        {:error, invalid_changesets}
+    end
+  end
+
+  defp persist_metrics({:error, changeset}, _) do
+    {:error, changeset}
   end
 
   def show(conn, %{"id" => id}) do
