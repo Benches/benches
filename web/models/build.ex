@@ -6,6 +6,7 @@ defmodule Benches.Build do
     field :branch, :string
     field :commit_timestamp, Ecto.DateTime
     field :commit_sha, :string
+    has_many :metrics, Benches.Metric
 
     timestamps
   end

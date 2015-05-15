@@ -9,7 +9,7 @@ defmodule Benches.Metric do
     timestamps
   end
 
-  @required_fields ~w(key value)
+  @required_fields ~w(build_id key value)
   @optional_fields ~w()
 
   @doc """
