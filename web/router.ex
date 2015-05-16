@@ -24,4 +24,8 @@ defmodule Benches.Router do
 
      resources "/builds", BuildController
    end
+
+   scope "/graphs", Benches do
+     get "/:project/:branch", GraphController, :show
+   end
 end
